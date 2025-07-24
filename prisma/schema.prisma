@@ -1,0 +1,71 @@
+// prisma/schema.prisma
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// Your existing types as Prisma models
+model Store {
+    id          String   @id @default(cuid())
+    name        String
+    description String?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    // Relations
+    layouts    Layout[]
+    products   Product[]
+    pathPoints PathPoint[]
+
+    @@map("stores")
+}
+
+model Layout {
+    id        String   @id @default(cuid())
+    name      String   @default("Main Layout")
+    storeId   String
+    blocks    Json // Your StoreBlock[] as JSON
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+    @@map("layouts")
+}
+
+model Product {
+    id          String   @id @default(cuid())
+    name        String
+    description String?
+    storeId     String
+    blockId     String? // Which block it's placed on
+    x           Float? // Position within block
+    y           Float?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+    @@map("products")
+}
+
+model PathPoint {
+    id      String   @id @default(cuid())
+    storeId String
+    type    PathType
+    x       Float
+    y       Float
+
+    store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+    @@map("path_points")
+}
+
+enum PathType {
+    START
+    END
+}
