@@ -17,18 +17,21 @@ model Store {
     updatedAt   DateTime @updatedAt
 
     // Relations
-    layouts    Layout[]
-    products   Product[]
-    pathPoints PathPoint[]
+    layouts  Layout[]
+    products Product[]
+    // pathPoints PathPoint[]
+    // PathPoint PathPoint[]
 
     @@map("stores")
 }
 
 model Layout {
-    id        String   @id @default(cuid())
-    name      String   @default("Main Layout")
-    storeId   String
-    blocks    Json // Your StoreBlock[] as JSON
+    id         String      @id @default(cuid())
+    name       String      @default("Main Layout")
+    storeId    String
+    blocks     Json // Your StoreBlock[] as JSON
+    pathPoints PathPoint[] // ✅ PathPoints belong to layout!
+
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
@@ -54,13 +57,16 @@ model Product {
 }
 
 model PathPoint {
-    id      String   @id @default(cuid())
-    storeId String
-    type    PathType
-    x       Float
-    y       Float
+    id       String   @id @default(cuid())
+    layoutId String
+    type     PathType
+    x        Float
+    y        Float
 
-    store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+    // store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+    layout Layout @relation(fields: [layoutId], references: [id])
+    // Store   Store?  @relation(fields: [storeId], references: [id])
+    // storeId String?
 
     @@map("path_points")
 }

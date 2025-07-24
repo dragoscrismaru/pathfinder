@@ -7,9 +7,7 @@ import { useState } from "react";
 export default function StoresPage() {
   const { data: stores, isLoading, refetch } = api.store.getAll.useQuery();
   const deleteStoreMutation = api.store.delete.useMutation({
-    onSuccess: () => {
-      refetch();
-    },
+    onSuccess: () => refetch(),
   });
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -98,17 +96,19 @@ export default function StoresPage() {
                 )}
 
                 <div className="mb-4 flex items-center justify-between text-sm text-gray-500">
+                  <span>{store.layouts.length} layouts</span>
                   <span>{store._count.products} products</span>
                   <span>
                     Updated {new Date(store.updatedAt).toLocaleDateString()}
                   </span>
                 </div>
 
+                {/* 🆕 Updated button - goes to store detail page */}
                 <Link
                   href={`/stores/${store.id}`}
-                  className="block w-full rounded-lg bg-green-500 py-2 text-center text-white transition-colors hover:bg-green-600"
+                  className="block w-full rounded-lg bg-blue-500 py-2 text-center text-white transition-colors hover:bg-blue-600"
                 >
-                  Open Editor
+                  📋 Manage Layouts
                 </Link>
               </div>
             ))}

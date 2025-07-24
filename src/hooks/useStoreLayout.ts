@@ -90,7 +90,7 @@ export const useStoreLayout = () => {
 
   const [allowOverlap, setAllowOverlap] = useState(false);
   const [overlappingBlocks, setOverlappingBlocks] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
 
   // ===================================================================
@@ -132,7 +132,7 @@ export const useStoreLayout = () => {
       const overlapping = findOverlappingBlocks(currentBlocks);
       setOverlappingBlocks(overlapping);
     },
-    [allowOverlap]
+    [allowOverlap],
   );
 
   /**
@@ -163,7 +163,7 @@ export const useStoreLayout = () => {
   const importBlocks = useCallback(
     (
       importedBlocks: StoreBlock[],
-      options: ImportOptions = {}
+      options: ImportOptions = {},
     ): DXFImportResult => {
       const { replaceExisting = true, offsetX = 0, offsetY = 0 } = options;
 
@@ -202,11 +202,11 @@ export const useStoreLayout = () => {
         const newCounters = { ...counters };
         adjustedBlocks.forEach((block) => {
           const typeCount = adjustedBlocks.filter(
-            (b) => b.type === block.type
+            (b) => b.type === block.type,
           ).length;
           newCounters[block.type] = Math.max(
             newCounters[block.type],
-            typeCount + 1
+            typeCount + 1,
           );
         });
         setCounters(newCounters);
@@ -232,7 +232,7 @@ export const useStoreLayout = () => {
         });
 
         console.log(
-          `Successfully imported ${adjustedBlocks.length} blocks from external source`
+          `Successfully imported ${adjustedBlocks.length} blocks from external source`,
         );
 
         return {
@@ -258,7 +258,7 @@ export const useStoreLayout = () => {
         };
       }
     },
-    [blocks, counters, allowOverlap, editingBlockId, updateOverlappingBlocks]
+    [blocks, counters, allowOverlap, editingBlockId, updateOverlappingBlocks],
   );
 
   /**
@@ -314,7 +314,6 @@ export const useStoreLayout = () => {
         height: config.height,
         type,
         name: config.name,
-        rotation: 0,
         color: config.color,
       };
 
@@ -323,7 +322,7 @@ export const useStoreLayout = () => {
         const hasCollision = checkCollisionOptimized(newBlock, blocks);
         if (hasCollision) {
           alert(
-            "Cannot place block here - it would overlap with another block!"
+            "Cannot place block here - it would overlap with another block!",
           );
           return;
         }
@@ -342,7 +341,7 @@ export const useStoreLayout = () => {
         updateOverlappingBlocks(newBlocks);
       }
     },
-    [blocks, counters, allowOverlap, updateOverlappingBlocks]
+    [blocks, counters, allowOverlap, updateOverlappingBlocks],
   );
 
   /**
@@ -365,7 +364,7 @@ export const useStoreLayout = () => {
               const hasCollision = checkCollisionOptimized(
                 updatedBlock,
                 prevBlocks,
-                blockId
+                blockId,
               );
               if (hasCollision) {
                 return block; // Keep original position if collision
@@ -385,7 +384,7 @@ export const useStoreLayout = () => {
         return newBlocks;
       });
     },
-    [allowOverlap, updateOverlappingBlocks]
+    [allowOverlap, updateOverlappingBlocks],
   );
 
   /**
@@ -412,7 +411,7 @@ export const useStoreLayout = () => {
               const hasCollision = checkCollisionOptimized(
                 updatedBlock,
                 prevBlocks,
-                blockId
+                blockId,
               );
               if (hasCollision) {
                 return block; // Keep original size if collision
@@ -432,46 +431,34 @@ export const useStoreLayout = () => {
         return newBlocks;
       });
     },
-    [allowOverlap, updateOverlappingBlocks]
+    [allowOverlap, updateOverlappingBlocks],
   );
 
   /**
    * Rotates the currently selected block by 90 degrees
    * Swaps width/height and validates new orientation
    */
+
   const rotateSelectedBlock = useCallback(() => {
     if (!selectedBlockId) return;
 
     setBlocks((prevBlocks) => {
       const newBlocks = prevBlocks.map((block) => {
         if (block.id === selectedBlockId) {
-          const newRotation = ((block.rotation + 90) % 360) as
-            | 0
-            | 90
-            | 180
-            | 270;
-
-          // Swap dimensions for 90/270 degree rotations
-          let newWidth = block.width;
-          let newHeight = block.height;
-          if (newRotation === 90 || newRotation === 270) {
-            newWidth = block.height;
-            newHeight = block.width;
-          }
-
+          // ✅ SIMPLE: Just swap width and height - that's it!
           const updatedBlock = {
             ...block,
-            rotation: newRotation,
-            width: newWidth,
-            height: newHeight,
+            width: block.height, // ← Direct swap
+            height: block.width, // ← Direct swap
+            // No rotation field needed!
           };
 
-          // Validate rotation doesn't cause collision if overlap not allowed
+          // ✅ SIMPLE: Same collision check but simpler object
           if (!allowOverlap) {
             const hasCollision = checkCollisionOptimized(
               updatedBlock,
               prevBlocks,
-              selectedBlockId
+              selectedBlockId,
             );
             if (hasCollision) {
               return block; // Keep original if rotation causes collision
@@ -483,7 +470,7 @@ export const useStoreLayout = () => {
         return block;
       });
 
-      // Update overlapping blocks if overlap is allowed
+      // ✅ SIMPLE: Same overlap tracking (unchanged)
       if (allowOverlap) {
         updateOverlappingBlocks(newBlocks);
       }
@@ -528,7 +515,7 @@ export const useStoreLayout = () => {
       setTempName(block.name);
       setSelectedBlockId(blockId);
     },
-    [blocks]
+    [blocks],
   );
 
   /**
@@ -538,8 +525,8 @@ export const useStoreLayout = () => {
     if (editingBlockId) {
       setBlocks((prev) =>
         prev.map((b) =>
-          b.id === editingBlockId ? { ...b, name: tempName || b.name } : b
-        )
+          b.id === editingBlockId ? { ...b, name: tempName || b.name } : b,
+        ),
       );
     }
     setEditingBlockId(null);
@@ -610,7 +597,7 @@ export const useStoreLayout = () => {
         const result = pathfindingAlgorithm(
           { x: startPoint.x, y: startPoint.y },
           { x: endPoint.x, y: endPoint.y },
-          blocks
+          blocks,
         );
 
         if (result.success) {

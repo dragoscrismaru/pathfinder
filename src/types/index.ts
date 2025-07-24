@@ -55,7 +55,7 @@ export interface StoreBlock {
   height: number; // Height in meters
   type: StoreBlockType; // Block type/category
   name: string; // Display name (user-editable)
-  rotation: 0 | 90 | 180 | 270; // Rotation in degrees
+  //   rotation: 0 | 90 | 180 | 270; // Rotation in degrees
   color?: string; // Optional color override
 }
 
@@ -68,6 +68,10 @@ export interface PathPoint {
   x: number; // X position in meters
   y: number; // Y position in meters
   type: "start" | "end"; // Point type for pathfinding
+}
+export interface LayoutData {
+  blocks: StoreBlock[];
+  pathPoints: PathPoint[];
 }
 
 /**

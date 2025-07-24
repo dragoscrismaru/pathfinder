@@ -1,277 +1,88 @@
-// src/app/stores/[id]/page.tsx - FIXED VERSION
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  type Tool,
-  type Point,
-  type ViewportOffset,
-  type StoreBlockType,
-} from "@/types";
-import { useStoreLayout } from "@/hooks/useStoreLayout";
-import { snapToGrid } from "@/lib/geometry";
-import { Toolbar } from "@/components/toolbar";
-import { InfoPanel } from "@/components/InfoPanel";
-import { PropertiesPanel } from "@/components/PropertiesPanel";
-import { Canvas } from "@/components/Canvas";
 import { api } from "@/trpc/react";
 
-export default function StoreEditorPage() {
+export default function StoreDetailPage() {
   const params = useParams();
   const router = useRouter();
   const storeId = params.id as string;
 
-  // ===================================================================
-  // ALL HOOKS MUST BE CALLED AT THE TOP LEVEL - BEFORE ANY CONDITIONS
-  // ===================================================================
+  const [newLayoutName, setNewLayoutName] = useState("");
+  const [showCreateLayout, setShowCreateLayout] = useState(false);
 
-  // Get store info for header
-  const { data: store, isLoading: storeLoading } = api.store.getById.useQuery({
-    id: storeId,
-  });
-
-  // Layout state from custom hook - MUST be called unconditionally
+  // Get store with all its layouts
   const {
-    blocks,
-    pathPoints,
-    selectedBlockId,
-    editingBlockId,
-    tempName,
-    allowOverlap,
-    overlappingBlocks,
-    currentPath,
-    pathfindingMessage,
-    addBlock,
-    updateBlockPosition,
-    updateBlockSize,
-    rotateSelectedBlock,
-    deleteSelected,
-    setSelectedBlockId,
-    startEditingName,
-    finishEditingName,
-    setTempName,
-    addPathPoint,
-    clearPathPoints,
-    findPath,
-    clearPath,
-    toggleOverlapMode,
-    importBlocks,
-    clearLayout,
-    loading,
-    saving,
-  } = useStoreLayout(storeId);
+    data: store,
+    isLoading,
+    refetch,
+  } = api.store.getById.useQuery({ id: storeId });
 
-  // UI state hooks - MUST also be at top level
-  const [selectedTool, setSelectedTool] = useState<Tool>("select");
-  const [panOffset, setPanOffset] = useState<ViewportOffset>({
-    x: 400,
-    y: 300,
+  const createLayoutMutation = api.store.createLayout.useMutation({
+    onSuccess: (layout) => {
+      console.log(`✅ Created layout: ${layout.name}`);
+      setNewLayoutName("");
+      setShowCreateLayout(false);
+      refetch();
+    },
+    onError: (error) => {
+      alert(`Failed to create layout: ${error.message}`);
+    },
   });
 
-  // ===================================================================
-  // ALL CALLBACK HOOKS - MUST BE BEFORE CONDITIONS
-  // ===================================================================
-
-  const handleSelectTool = useCallback(
-    (tool: Tool) => {
-      setSelectedTool(tool);
-      if (tool !== "select") {
-        setSelectedBlockId(null);
-      }
+  const deleteLayoutMutation = api.store.deleteLayout.useMutation({
+    onSuccess: () => {
+      refetch();
     },
-    [setSelectedBlockId],
-  );
+  });
 
-  const handleCanvasClick = useCallback(
-    (worldPos: Point) => {
-      const toolToBlockType: Partial<Record<Tool, StoreBlockType>> = {
-        "add-wall": "wall",
-        "add-room": "room",
-        "add-shelf": "shelf",
-        "add-counter": "counter",
-        "add-entrance": "entrance",
-        "add-checkout": "checkout",
-        "add-building": "building",
-      };
+  const handleCreateLayout = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-      const blockType = toolToBlockType[selectedTool];
-
-      if (blockType) {
-        addBlock(worldPos, blockType);
-      } else if (selectedTool === "add-start") {
-        addPathPoint(worldPos, "start");
-      } else if (selectedTool === "add-end") {
-        addPathPoint(worldPos, "end");
-      }
-    },
-    [selectedTool, addBlock, addPathPoint],
-  );
-
-  const handleBlockClick = useCallback(
-    (blockId: string, e: React.MouseEvent) => {
-      setSelectedTool("select");
-      setSelectedBlockId(blockId);
-    },
-    [setSelectedBlockId],
-  );
-
-  const handleBlockDrag = useCallback(
-    (blockId: string, newX: number, newY: number) => {
-      const snappedX = snapToGrid(newX);
-      const snappedY = snapToGrid(newY);
-      updateBlockPosition(blockId, snappedX, snappedY);
-    },
-    [updateBlockPosition],
-  );
-
-  const clearSelections = useCallback(() => {
-    setSelectedBlockId(null);
-    if (editingBlockId) {
-      finishEditingName();
+    if (!newLayoutName.trim()) {
+      alert("Please enter a layout name");
+      return;
     }
-  }, [setSelectedBlockId, editingBlockId, finishEditingName]);
 
-  const handleDXFImport = useCallback(
-    (importedBlocks: StoreBlock[]) => {
+    try {
+      await createLayoutMutation.mutateAsync({
+        storeId,
+        name: newLayoutName.trim(),
+      });
+    } catch (error) {
+      console.error("Failed to create layout:", error);
+    }
+  };
+
+  const handleDeleteLayout = async (layoutId: string, layoutName: string) => {
+    if (
+      confirm(
+        `Are you sure you want to delete "${layoutName}"? This cannot be undone.`,
+      )
+    ) {
       try {
-        console.log(`Attempting to import ${importedBlocks.length} blocks`);
-
-        const result = importBlocks(importedBlocks, {
-          replaceExisting: true,
-          offsetX: 0,
-          offsetY: 0,
-        });
-
-        if (result.success) {
-          console.log(`Successfully imported ${result.blocksImported} blocks`);
-          setSelectedTool("select");
-          clearSelections();
-          setTimeout(() => {
-            alert(
-              `Successfully imported ${result.blocksImported} blocks from DXF file!`,
-            );
-          }, 100);
-        } else {
-          console.error("Import failed:", result.message);
-          alert(`Import failed: ${result.message}`);
-        }
+        await deleteLayoutMutation.mutateAsync({ layoutId, storeId });
       } catch (error) {
-        console.error("DXF Import error:", error);
         alert(
-          `Import error: ${error instanceof Error ? error.message : "Unknown error"}`,
+          `Failed to delete layout: ${error instanceof Error ? error.message : "Unknown error"}`,
         );
       }
-    },
-    [importBlocks, clearSelections],
-  );
-
-  const handleClearLayout = useCallback(() => {
-    try {
-      clearLayout();
-      setSelectedTool("select");
-      console.log("Layout cleared successfully");
-    } catch (error) {
-      console.error("Clear layout error:", error);
-      alert("Error clearing layout. Please try again.");
     }
-  }, [clearLayout]);
+  };
 
-  // ===================================================================
-  // EFFECT HOOKS - MUST BE BEFORE CONDITIONS
-  // ===================================================================
-
-  // Keyboard shortcuts effect
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement?.tagName.toLowerCase() === "input") {
-        return;
-      }
-
-      switch (e.key) {
-        case "1":
-          handleSelectTool("select");
-          break;
-        case "2":
-          handleSelectTool("add-wall");
-          break;
-        case "3":
-          handleSelectTool("add-room");
-          break;
-        case "4":
-          handleSelectTool("add-shelf");
-          break;
-        case "5":
-          handleSelectTool("add-counter");
-          break;
-        case "6":
-          handleSelectTool("add-entrance");
-          break;
-        case "7":
-          handleSelectTool("add-checkout");
-          break;
-        case "8":
-          handleSelectTool("add-building");
-          break;
-        case "9":
-          handleSelectTool("add-start");
-          break;
-        case "0":
-          handleSelectTool("add-end");
-          break;
-        case "Escape":
-          handleSelectTool("select");
-          clearSelections();
-          break;
-        case "Delete":
-        case "Backspace":
-          if (selectedBlockId && !editingBlockId) {
-            deleteSelected();
-          }
-          break;
-        case "r":
-        case "R":
-          if (selectedBlockId) {
-            rotateSelectedBlock();
-          }
-          break;
-        case "o":
-        case "O":
-          toggleOverlapMode();
-          break;
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    selectedBlockId,
-    editingBlockId,
-    handleSelectTool,
-    clearSelections,
-    deleteSelected,
-    rotateSelectedBlock,
-    toggleOverlapMode,
-  ]);
-
-  // ===================================================================
-  // NOW WE CAN SAFELY DO CONDITIONAL RENDERING
-  // ===================================================================
-
-  // Show loading state
-  if (storeLoading || loading) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-          <p className="text-gray-600">Loading store editor...</p>
+          <p className="text-gray-600">Loading store details...</p>
         </div>
       </div>
     );
   }
 
-  // Handle store not found
   if (!store) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
@@ -279,114 +90,173 @@ export default function StoreEditorPage() {
           <h1 className="mb-4 text-2xl font-bold text-gray-900">
             Store Not Found
           </h1>
-          <p className="mb-6 text-gray-600">
-            The store you're looking for doesn't exist.
-          </p>
-          <Link
-            href="/stores"
-            className="rounded-lg bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-600"
-          >
-            Back to Stores
+          <Link href="/stores" className="text-blue-500 hover:text-blue-700">
+            ← Back to Stores
           </Link>
         </div>
       </div>
     );
   }
 
-  // ===================================================================
-  // MAIN RENDER - AFTER ALL HOOKS AND CONDITIONS
-  // ===================================================================
-
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-gray-50">
-      {/* Header Bar */}
-      <div className="absolute top-0 right-0 left-0 z-50 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-2">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/stores"
-            className="text-sm text-blue-500 hover:text-blue-700"
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <Link
+                href="/stores"
+                className="text-sm text-blue-500 hover:text-blue-700"
+              >
+                ← Back to Stores
+              </Link>
+              <div className="h-4 w-px bg-gray-300" />
+              <h1 className="text-3xl font-bold text-gray-900">{store.name}</h1>
+            </div>
+            {store.description && (
+              <p className="text-gray-600">{store.description}</p>
+            )}
+            <p className="mt-1 text-sm text-gray-500">
+              {store.layouts.length} layouts • {store._count?.products || 0}{" "}
+              products
+            </p>
+          </div>
+
+          <button
+            onClick={() => setShowCreateLayout(true)}
+            className="rounded-lg bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600"
           >
-            ← Back to Stores
-          </Link>
-          <div className="h-4 w-px bg-gray-300" />
-          <h1 className="font-semibold text-gray-900">{store.name}</h1>
-          {saving && <span className="text-xs text-blue-500">Saving...</span>}
+            + Create New Layout
+          </button>
         </div>
-        <div className="text-sm text-gray-500">
-          {blocks.length} blocks • {pathPoints.length} path points
+
+        {/* Create Layout Modal */}
+        {showCreateLayout && (
+          <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
+            <div className="w-full max-w-md rounded-lg bg-white p-6">
+              <h2 className="mb-4 text-xl font-bold">Create New Layout</h2>
+              <form onSubmit={handleCreateLayout}>
+                <div className="mb-4">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Layout Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newLayoutName}
+                    onChange={(e) => setNewLayoutName(e.target.value)}
+                    placeholder="e.g., Summer Layout, Holiday Setup"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:ring-2 focus:ring-green-500"
+                    required
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateLayout(false);
+                      setNewLayoutName("");
+                    }}
+                    className="flex-1 rounded-lg bg-gray-500 py-2 text-white transition-colors hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={createLayoutMutation.isLoading}
+                    className="flex-1 rounded-lg bg-green-500 py-2 text-white transition-colors hover:bg-green-600 disabled:bg-green-300"
+                  >
+                    {createLayoutMutation.isLoading
+                      ? "Creating..."
+                      : "Create Layout"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Layouts Grid */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {store.layouts.map((layout, index) => (
+            <div
+              key={layout.id}
+              className="rounded-lg bg-white p-6 shadow-md transition-shadow hover:shadow-lg"
+            >
+              <div className="mb-4 flex items-start justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {layout.name}
+                  </h3>
+                  {index === 0 && (
+                    <span className="mt-1 inline-block rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800">
+                      Main Layout
+                    </span>
+                  )}
+                </div>
+
+                {store.layouts.length > 1 && (
+                  <button
+                    onClick={() => handleDeleteLayout(layout.id, layout.name)}
+                    disabled={deleteLayoutMutation.isLoading}
+                    className="text-sm text-red-500 hover:text-red-700 disabled:opacity-50"
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <div className="space-y-1 text-sm text-gray-600">
+                  <div>
+                    Blocks:{" "}
+                    <span className="font-medium">
+                      {((layout.blocks as any[]) || []).length}
+                    </span>
+                  </div>
+                  <div>
+                    PathPoints:{" "}
+                    <span className="font-medium">
+                      {((layout.pathPoints as any[]) || []).length}
+                    </span>
+                  </div>
+                  <div>
+                    Updated:{" "}
+                    <span className="font-medium">
+                      {new Date(layout.updatedAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <Link
+                href={`/stores/${storeId}/layouts/${layout.id}`}
+                className="block w-full rounded-lg bg-blue-500 py-2 text-center text-white transition-colors hover:bg-blue-600"
+              >
+                🏗️ Edit Layout
+              </Link>
+            </div>
+          ))}
         </div>
+
+        {store.layouts.length === 0 && (
+          <div className="py-12 text-center">
+            <div className="mb-4 text-6xl">📋</div>
+            <h2 className="mb-2 text-2xl font-semibold text-gray-900">
+              No layouts yet
+            </h2>
+            <p className="mb-6 text-gray-600">
+              Create your first layout to start designing
+            </p>
+            <button
+              onClick={() => setShowCreateLayout(true)}
+              className="rounded-lg bg-green-500 px-6 py-3 text-white transition-colors hover:bg-green-600"
+            >
+              Create First Layout
+            </button>
+          </div>
+        )}
       </div>
-
-      {/* Main Editor Area */}
-      <div className="flex min-w-0 flex-1 flex-col pt-12">
-        {/* Toolbar */}
-        <Toolbar
-          selectedTool={selectedTool}
-          onSelectTool={handleSelectTool}
-          selectedBlockId={selectedBlockId}
-          blocks={blocks}
-          allowOverlap={allowOverlap}
-          overlappingBlocks={overlappingBlocks}
-          onToggleOverlap={toggleOverlapMode}
-          onDelete={deleteSelected}
-          onRotate={rotateSelectedBlock}
-          onFindPath={findPath}
-          onClearPoints={clearPathPoints}
-          onClearPath={clearPath}
-          onImportBlocks={handleDXFImport}
-          onClearLayout={handleClearLayout}
-        />
-
-        {/* Main Canvas */}
-        <Canvas
-          blocks={blocks}
-          pathPoints={pathPoints}
-          selectedTool={selectedTool}
-          selectedBlockId={selectedBlockId}
-          editingBlockId={editingBlockId}
-          tempName={tempName}
-          allowOverlap={allowOverlap}
-          overlappingBlocks={overlappingBlocks}
-          currentPath={currentPath}
-          pathfindingMessage={pathfindingMessage}
-          panOffset={panOffset}
-          setPanOffset={setPanOffset}
-          onSelectBlock={setSelectedBlockId}
-          onBlockClick={handleBlockClick}
-          onCanvasClick={handleCanvasClick}
-          onBlockDrag={handleBlockDrag}
-          onFinishEditingName={finishEditingName}
-          onStartEditingName={startEditingName}
-          onTempNameChange={setTempName}
-        />
-
-        {/* Info Panel Overlay */}
-        <InfoPanel
-          selectedTool={selectedTool}
-          pathPoints={pathPoints}
-          blockCount={blocks.length}
-          allowOverlap={allowOverlap}
-          overlappingCount={overlappingBlocks.size}
-        />
-      </div>
-
-      {/* Properties Panel Sidebar */}
-      <PropertiesPanel
-        selectedBlockId={selectedBlockId}
-        blocks={blocks}
-        editingBlockId={editingBlockId}
-        tempName={tempName}
-        allowOverlap={allowOverlap}
-        overlappingBlocks={overlappingBlocks}
-        onUpdatePosition={updateBlockPosition}
-        onUpdateSize={updateBlockSize}
-        onStartEditingName={startEditingName}
-        onFinishEditingName={finishEditingName}
-        onTempNameChange={setTempName}
-        onRotate={rotateSelectedBlock}
-        onDelete={deleteSelected}
-        onToggleOverlap={toggleOverlapMode}
-      />
     </div>
   );
 }

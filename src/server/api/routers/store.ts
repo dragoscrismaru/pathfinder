@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import { TRPCError } from "@trpc/server";
 
 // Validation schemas
-const StoreBlockSchema = z.object({
+export const StoreBlockSchema = z.object({
   id: z.string(),
   x: z.number(),
   y: z.number(),
@@ -18,13 +19,15 @@ const StoreBlockSchema = z.object({
     "building",
   ]),
   name: z.string().min(1),
-  rotation: z.union([
-    z.literal(0),
-    z.literal(90),
-    z.literal(180),
-    z.literal(270),
-  ]),
+
   color: z.string().optional(),
+});
+
+export const PathPointSchema = z.object({
+  id: z.string(),
+  x: z.number(),
+  y: z.number(),
+  type: z.enum(["start", "end"]),
 });
 
 export const storeRouter = createTRPCRouter({
@@ -56,14 +59,15 @@ export const storeRouter = createTRPCRouter({
         include: {
           layouts: true,
           products: true,
-          pathPoints: true,
         },
       });
 
       if (!store) {
-        throw new Error("Store not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Store not found",
+        });
       }
-
       return store;
     }),
 
@@ -97,18 +101,48 @@ export const storeRouter = createTRPCRouter({
   updateLayout: publicProcedure
     .input(
       z.object({
-        storeId: z.string(),
+        layoutId: z.string(), // ✅ Specify which layout to update
         blocks: z.array(StoreBlockSchema),
+        pathPoints: z.array(PathPointSchema).optional().default([]),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      return await ctx.db.layout.updateMany({
-        where: { storeId: input.storeId },
+      // const startTime = Date.now();
+
+      console.log(`💾 Updating layout ${input.layoutId}`);
+
+      // Verify layout exists
+      const layout = await ctx.db.layout.findUnique({
+        where: { id: input.layoutId },
+      });
+
+      if (!layout) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Layout not found",
+        });
+      }
+
+      // ✅ Update specific layout only
+      const result = await ctx.db.layout.update({
+        where: { id: input.layoutId }, // Target specific layout
         data: {
           blocks: input.blocks,
+          // pathPoints: input.pathPoints,
           updatedAt: new Date(),
         },
       });
+
+      // const endTime = Date.now();
+      console.log(`✅ Updated layout ${input.layoutId} successfully`);
+
+      return {
+        success: true,
+        layoutId: result.id,
+        blocksCount: input.blocks.length,
+        pathPointsCount: input.pathPoints.length,
+        updatedAt: result.updatedAt,
+      };
     }),
 
   // Delete store
