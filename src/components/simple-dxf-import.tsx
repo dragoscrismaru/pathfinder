@@ -61,7 +61,7 @@ interface ParseOptions {
 // ENHANCED DXF parser with intelligent filtering for complex drawings
 const parseComplexDXF = async (
   file: File,
-  options: ParseOptions
+  options: ParseOptions,
 ): Promise<DXFParseResult> => {
   try {
     const content = await file.text();
@@ -120,7 +120,7 @@ const parseComplexDXF = async (
           ) {
             const length = Math.sqrt(
               Math.pow(currentEntity.x2 - currentEntity.x1, 2) +
-                Math.pow(currentEntity.y2 - currentEntity.y1, 2)
+                Math.pow(currentEntity.y2 - currentEntity.y1, 2),
             );
 
             const layer = currentEntity.layer || "0";
@@ -166,7 +166,7 @@ const parseComplexDXF = async (
     ) {
       const length = Math.sqrt(
         Math.pow(currentEntity.x2 - currentEntity.x1, 2) +
-          Math.pow(currentEntity.y2 - currentEntity.y1, 2)
+          Math.pow(currentEntity.y2 - currentEntity.y1, 2),
       );
 
       const layer = currentEntity.layer || "0";
@@ -183,31 +183,104 @@ const parseComplexDXF = async (
       totalEntitiesFound++;
     }
 
+    // ENHANCED LOGGING - This is what you requested!
     console.log(`🔍 Total LINE entities found: ${rawLines.length}`);
-    console.log(`📋 Layers found:`, Array.from(allLayers));
+    console.log(`📋 Total unique layers found: ${allLayers.size}`);
+    console.log(`📋 All layers in file:`, Array.from(allLayers).sort());
+
+    // Add detailed layer analysis
+    if (allLayers.size > 0) {
+      console.log("\n=== DETAILED LAYER ANALYSIS ===");
+
+      // Count lines per layer
+      const layerCounts = {};
+      rawLines.forEach((line) => {
+        layerCounts[line.layer] = (layerCounts[line.layer] || 0) + 1;
+      });
+
+      // Sort layers by frequency (most common first)
+      const sortedLayers = Object.entries(layerCounts)
+        .sort(([, a], [, b]) => b - a)
+        .map(([layer, count]) => ({ layer, count }));
+
+      console.log("📊 Layers sorted by line count:");
+      sortedLayers.forEach(({ layer, count }) => {
+        console.log(`   ${layer}: ${count} lines`);
+      });
+
+      // Show which layers would match current filters
+      console.log("\n🎯 Filter matching analysis:");
+      console.log("Your current layer filters:", options.allowedLayers);
+
+      const matchingLayers = [];
+      const nonMatchingLayers = [];
+
+      Array.from(allLayers).forEach((layer) => {
+        const matches = options.allowedLayers.some(
+          (allowedLayer) =>
+            layer.toUpperCase().includes(allowedLayer.toUpperCase()) ||
+            allowedLayer.toUpperCase().includes(layer.toUpperCase()),
+        );
+
+        if (matches) {
+          matchingLayers.push(layer);
+        } else {
+          nonMatchingLayers.push(layer);
+        }
+      });
+
+      console.log("✅ Layers that MATCH your filters:", matchingLayers);
+      console.log(
+        "❌ Layers that DON'T match your filters:",
+        nonMatchingLayers,
+      );
+
+      // Suggest potential wall/structural layers
+      const potentialWallLayers = Array.from(allLayers).filter((layer) => {
+        const upperLayer = layer.toUpperCase();
+        return (
+          upperLayer.includes("WALL") ||
+          upperLayer.includes("STRUCT") ||
+          upperLayer.includes("ARCH") ||
+          upperLayer.includes("BUILD") ||
+          upperLayer.includes("FLOOR") ||
+          upperLayer.includes("PLAN") ||
+          layer === "0"
+        );
+      });
+
+      if (potentialWallLayers.length > 0) {
+        console.log(
+          "💡 Suggested layers for walls/structure:",
+          potentialWallLayers,
+        );
+      }
+
+      console.log("=== END LAYER ANALYSIS ===\n");
+    }
 
     // FILTER 1: Only keep lines from allowed layers
     const layerFilteredLines = rawLines.filter((line) =>
       options.allowedLayers.some(
         (allowedLayer) =>
           line.layer.toUpperCase().includes(allowedLayer.toUpperCase()) ||
-          allowedLayer.toUpperCase().includes(line.layer.toUpperCase())
-      )
+          allowedLayer.toUpperCase().includes(line.layer.toUpperCase()),
+      ),
     );
     console.log(
       `🎯 After layer filtering: ${layerFilteredLines.length} (removed ${
         rawLines.length - layerFilteredLines.length
-      })`
+      })`,
     );
 
     // FILTER 2: Only keep lines above minimum length (removes detail/dimension lines)
     const lengthFilteredLines = layerFilteredLines.filter(
-      (line) => line.length >= options.minLineLength
+      (line) => line.length >= options.minLineLength,
     );
     console.log(
       `📏 After length filtering (≥${options.minLineLength}m): ${
         lengthFilteredLines.length
-      } (removed ${layerFilteredLines.length - lengthFilteredLines.length})`
+      } (removed ${layerFilteredLines.length - lengthFilteredLines.length})`,
     );
 
     // FILTER 3: Merge connected lines (optional)
@@ -217,7 +290,7 @@ const parseComplexDXF = async (
       console.log(
         `🔗 After merging connected lines: ${finalLines.length} (merged ${
           lengthFilteredLines.length - finalLines.length
-        })`
+        })`,
       );
     }
 
@@ -263,7 +336,7 @@ const parseComplexDXF = async (
       return {
         success: false,
         blocks: [],
-        message: `No suitable lines found. Found ${totalEntitiesFound} total lines but none matched your filters. Try adjusting layer names or minimum length.`,
+        message: `No suitable lines found. Found ${totalEntitiesFound} total lines but none matched your filters. Check the console for detailed layer analysis!`,
         statistics: {
           totalEntities: totalEntitiesFound,
           convertedBlocks: 0,
@@ -320,7 +393,7 @@ function mergeConnectedLines(
     y2: number;
     layer: string;
     length: number;
-  }>
+  }>,
 ) {
   const tolerance = 0.5; // 50cm tolerance for connection
   const merged: typeof lines = [];
@@ -354,7 +427,7 @@ function mergeConnectedLines(
           currentLine.y2 = otherLine.y2;
           currentLine.length = Math.sqrt(
             Math.pow(currentLine.x2 - currentLine.x1, 2) +
-              Math.pow(currentLine.y2 - currentLine.y1, 2)
+              Math.pow(currentLine.y2 - currentLine.y1, 2),
           );
           used.add(j);
           foundConnection = true;
@@ -436,7 +509,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
 
       handleParseDXF(selectedFile);
     },
-    [scaleFactor, minLineLength, selectedLayers, maxBlocks, mergeLines]
+    [scaleFactor, minLineLength, selectedLayers, maxBlocks, mergeLines],
   );
 
   const handleParseDXF = useCallback(
@@ -455,7 +528,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
 
         const result = await parseComplexDXF(fileToParse, options);
         setParseResult(result);
-
+        console.log("parse result", result);
         if (result.success) {
           setStep("preview");
         } else {
@@ -466,12 +539,12 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
         setError(
           `Failed to parse DXF: ${
             err instanceof Error ? err.message : "Unknown error"
-          }`
+          }`,
         );
         setStep("select");
       }
     },
-    [scaleFactor, minLineLength, selectedLayers, maxBlocks, mergeLines]
+    [scaleFactor, minLineLength, selectedLayers, maxBlocks, mergeLines],
   );
 
   const handleConfirmImport = useCallback(() => {
@@ -521,6 +594,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
         "STRUCTURAL",
         "0",
         "BUILDING",
+        "MAGAZIN - STRUCT - BETON",
       ]);
       setMergeLines(false);
     }
@@ -529,10 +603,10 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-bold">Import DXF Drawing</h2>
           <button
             onClick={onClose}
@@ -546,27 +620,28 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
         {step === "select" && (
           <div className="space-y-4">
             <div className="text-center">
-              <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">Select DXF File</h3>
-              <p className="text-gray-600 mb-4">
+              <FileText className="mx-auto mb-4 h-16 w-16 text-gray-400" />
+              <h3 className="mb-2 text-lg font-medium">Select DXF File</h3>
+              <p className="mb-4 text-gray-600">
                 Import architectural drawings with intelligent filtering
               </p>
             </div>
 
             {/* Complex Drawing Warning */}
             {file && file.size > 5 * 1024 * 1024 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <div className="flex items-start space-x-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
+                  <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-500" />
                   <div>
-                    <h4 className="font-medium text-amber-800 mb-1">
+                    <h4 className="mb-1 font-medium text-amber-800">
                       Large File Detected (
                       {(file.size / 1024 / 1024).toFixed(1)}MB)
                     </h4>
                     <p className="text-sm text-amber-700">
                       This appears to be a complex architectural drawing. We've
                       enabled filtering options to import only the main
-                      structural elements.
+                      structural elements. Check console logs for detailed layer
+                      analysis!
                     </p>
                   </div>
                 </div>
@@ -577,7 +652,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => applyPreset("minimal")}
-                className="p-3 text-sm border rounded-lg hover:bg-gray-50 text-center"
+                className="rounded-lg border p-3 text-center text-sm hover:bg-gray-50"
               >
                 <div className="font-medium">Minimal</div>
                 <div className="text-xs text-gray-600">
@@ -586,7 +661,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
               </button>
               <button
                 onClick={() => applyPreset("recommended")}
-                className="p-3 text-sm border rounded-lg hover:bg-gray-50 text-center bg-blue-50 border-blue-200"
+                className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-center text-sm hover:bg-gray-50"
               >
                 <div className="font-medium">Recommended</div>
                 <div className="text-xs text-gray-600">
@@ -595,7 +670,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
               </button>
               <button
                 onClick={() => applyPreset("detailed")}
-                className="p-3 text-sm border rounded-lg hover:bg-gray-50 text-center"
+                className="rounded-lg border p-3 text-center text-sm hover:bg-gray-50"
               >
                 <div className="font-medium">Detailed</div>
                 <div className="text-xs text-gray-600">
@@ -609,16 +684,16 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
               onClick={() => setShowAdvanced(!showAdvanced)}
               className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800"
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="h-4 w-4" />
               <span>{showAdvanced ? "Hide" : "Show"} Advanced Options</span>
             </button>
 
             {showAdvanced && (
-              <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+              <div className="space-y-4 rounded-lg bg-gray-50 p-4">
                 {/* Scale Factor */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
                       Scale Factor
                     </label>
                     <input
@@ -630,15 +705,15 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
                       step="0.01"
                       min="0.001"
                       max="10"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2"
                     />
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="mt-1 text-xs text-gray-600">
                       1 CAD unit = {scaleFactor} meters
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
                       Min Line Length (m)
                     </label>
                     <input
@@ -649,9 +724,9 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
                       }
                       step="0.1"
                       min="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2"
                     />
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="mt-1 text-xs text-gray-600">
                       Ignores shorter lines (dimensions, details)
                     </p>
                   </div>
@@ -659,7 +734,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
 
                 {/* Max Blocks */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Maximum Blocks ({maxBlocks})
                   </label>
                   <input
@@ -679,15 +754,15 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
 
                 {/* Layer Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
                     Import From These Layers
                   </label>
 
-                  <div className="flex flex-wrap gap-2 mb-2">
+                  <div className="mb-2 flex flex-wrap gap-2">
                     {selectedLayers.map((layer) => (
                       <span
                         key={layer}
-                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm flex items-center space-x-1"
+                        className="flex items-center space-x-1 rounded bg-blue-100 px-2 py-1 text-sm text-blue-800"
                       >
                         <span>{layer}</span>
                         <button
@@ -706,11 +781,11 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
                       value={customLayer}
                       onChange={(e) => setCustomLayer(e.target.value)}
                       placeholder="Add layer name..."
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
                     />
                     <button
                       onClick={addCustomLayer}
-                      className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                      className="rounded bg-blue-500 px-3 py-2 text-sm text-white hover:bg-blue-600"
                     >
                       Add
                     </button>
@@ -737,7 +812,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
             )}
 
             {/* File Upload */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
+            <div className="rounded-lg border-2 border-dashed border-gray-300 p-8">
               <input
                 type="file"
                 accept=".dxf"
@@ -747,9 +822,9 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
               />
               <label
                 htmlFor="dxf-file-input"
-                className="flex flex-col items-center cursor-pointer"
+                className="flex cursor-pointer flex-col items-center"
               >
-                <Upload className="w-12 h-12 text-gray-400 mb-2" />
+                <Upload className="mb-2 h-12 w-12 text-gray-400" />
                 <span className="text-sm text-gray-600">
                   Click to select DXF file
                 </span>
@@ -758,23 +833,24 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
 
             {/* Error Display */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center">
-                <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+              <div className="flex items-center rounded-lg border border-red-200 bg-red-50 p-4">
+                <AlertCircle className="mr-2 h-5 w-5 text-red-500" />
                 <span className="text-red-700">{error}</span>
               </div>
             )}
 
             {/* Info */}
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-2">
+            <div className="rounded-lg bg-blue-50 p-4">
+              <h4 className="mb-2 font-medium text-blue-800">
                 🎯 Smart Filtering for Complex Drawings:
               </h4>
-              <ul className="text-sm text-blue-700 space-y-1">
+              <ul className="space-y-1 text-sm text-blue-700">
                 <li>• ✅ Filters out dimension lines, text, and details</li>
                 <li>• ✅ Imports only from structural layers</li>
                 <li>• ✅ Merges connected line segments</li>
                 <li>• ✅ Limits output to prevent overload</li>
                 <li>• 📋 Perfect for complex architectural drawings</li>
+                <li>• 🔍 Check browser console for detailed layer analysis!</li>
               </ul>
             </div>
           </div>
@@ -782,16 +858,19 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
 
         {/* Step 2: Parsing */}
         {step === "parsing" && (
-          <div className="text-center py-8">
-            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="py-8 text-center">
+            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
             <p className="text-gray-600">Parsing and filtering DXF file...</p>
             {file && (
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="mt-2 text-sm text-gray-500">
                 Processing: {file.name}
               </p>
             )}
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="mt-2 text-xs text-gray-500">
               Applying smart filters to extract main structural elements
+            </p>
+            <p className="mt-1 text-xs text-blue-600">
+              💡 Check your browser console for detailed layer analysis!
             </p>
           </div>
         )}
@@ -800,14 +879,14 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
         {step === "preview" && parseResult && (
           <div className="space-y-4">
             <div
-              className={`p-3 rounded-lg flex items-center ${
+              className={`flex items-center rounded-lg p-3 ${
                 parseResult.success ? "bg-green-50" : "bg-red-50"
               }`}
             >
               {parseResult.success ? (
-                <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                <CheckCircle className="mr-2 h-5 w-5 text-green-500" />
               ) : (
-                <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                <AlertCircle className="mr-2 h-5 w-5 text-red-500" />
               )}
               <span
                 className={`text-sm ${
@@ -820,8 +899,8 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
 
             {/* Filtering Results */}
             {parseResult.success && (
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="font-medium text-blue-800 mb-2">
+              <div className="rounded-lg bg-blue-50 p-4">
+                <h4 className="mb-2 font-medium text-blue-800">
                   Filtering Results:
                 </h4>
                 <div className="grid grid-cols-2 gap-4 text-sm text-blue-700">
@@ -853,8 +932,8 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
             )}
 
             {/* Import Summary */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium mb-3">Import Summary</h4>
+            <div className="rounded-lg bg-gray-50 p-4">
+              <h4 className="mb-3 font-medium">Import Summary</h4>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">Blocks Created:</span>
@@ -881,18 +960,20 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
 
               {/* Available Layers Display */}
               <div className="mt-3">
-                <span className="text-gray-600 text-sm">Layers found:</span>
-                <div className="flex flex-wrap gap-1 mt-1">
+                <span className="text-sm text-gray-600">Layers found:</span>
+                <div className="mt-1 flex flex-wrap gap-1">
                   {parseResult.statistics.layers.slice(0, 10).map((layer) => (
                     <span
                       key={layer}
-                      className={`px-2 py-1 text-xs rounded ${
+                      className={`rounded px-2 py-1 text-xs ${
                         selectedLayers.some(
                           (selected) =>
                             selected
                               .toUpperCase()
                               .includes(layer.toUpperCase()) ||
-                            layer.toUpperCase().includes(selected.toUpperCase())
+                            layer
+                              .toUpperCase()
+                              .includes(selected.toUpperCase()),
                         )
                           ? "bg-green-100 text-green-800"
                           : "bg-gray-100 text-gray-600"
@@ -902,7 +983,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
                     </span>
                   ))}
                   {parseResult.statistics.layers.length > 10 && (
-                    <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                    <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">
                       +{parseResult.statistics.layers.length - 10} more
                     </span>
                   )}
@@ -912,9 +993,9 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
 
             {/* Block Preview */}
             {parseResult.blocks.length > 0 && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Sample Imported Blocks:</h4>
-                <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+              <div className="rounded-lg bg-gray-50 p-4">
+                <h4 className="mb-2 font-medium">Sample Imported Blocks:</h4>
+                <div className="max-h-32 space-y-1 overflow-y-auto text-sm">
                   {parseResult.blocks.slice(0, 8).map((block, index) => (
                     <div key={index} className="flex justify-between">
                       <span>{block.name}</span>
@@ -924,7 +1005,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
                     </div>
                   ))}
                   {parseResult.blocks.length > 8 && (
-                    <div className="text-gray-500 text-xs">
+                    <div className="text-xs text-gray-500">
                       ... and {parseResult.blocks.length - 8} more blocks
                     </div>
                   )}
@@ -934,11 +1015,11 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
 
             {/* Filter Adjustment Suggestions */}
             {parseResult.success && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h4 className="font-medium text-yellow-800 mb-2">
+              <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                <h4 className="mb-2 font-medium text-yellow-800">
                   💡 Need to adjust?
                 </h4>
-                <div className="text-sm text-yellow-700 space-y-1">
+                <div className="space-y-1 text-sm text-yellow-700">
                   {parseResult.blocks.length > 800 && (
                     <p>
                       • Too many blocks? Try increasing minimum line length or
@@ -961,6 +1042,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
                   <p>
                     • Green layer tags above show which layers were imported
                   </p>
+                  <p>• 🔍 Check browser console for complete layer analysis!</p>
                 </div>
               </div>
             )}
@@ -968,16 +1050,20 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
             {/* No Results Help */}
             {!parseResult.success &&
               parseResult.statistics.layers.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <h4 className="font-medium text-amber-800 mb-2">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <h4 className="mb-2 font-medium text-amber-800">
                     Found layers but no matches:
                   </h4>
-                  <div className="text-sm text-amber-700 mb-3">
+                  <div className="mb-3 text-sm text-amber-700">
                     <p>
                       Available layers:{" "}
                       {parseResult.statistics.layers.join(", ")}
                     </p>
                     <p>Your filter layers: {selectedLayers.join(", ")}</p>
+                    <p className="mt-2 font-medium">
+                      🔍 Check the browser console for detailed layer analysis
+                      with suggestions!
+                    </p>
                   </div>
                   <button
                     onClick={() => {
@@ -988,7 +1074,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
                             layer.toUpperCase().includes("WALL") ||
                             layer.toUpperCase().includes("ARCH") ||
                             layer.toUpperCase().includes("STRUCT") ||
-                            layer === "0"
+                            layer === "0",
                         );
                       if (commonWallLayers.length > 0) {
                         setSelectedLayers([
@@ -998,7 +1084,7 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
                       }
                       setStep("select");
                     }}
-                    className="px-3 py-2 bg-amber-500 text-white rounded text-sm hover:bg-amber-600"
+                    className="rounded bg-amber-500 px-3 py-2 text-sm text-white hover:bg-amber-600"
                   >
                     Auto-add detected layers and retry
                   </button>
@@ -1009,24 +1095,24 @@ const EnhancedDXFImport: React.FC<EnhancedDXFImportProps> = ({
             <div className="flex justify-between pt-4">
               <button
                 onClick={() => setStep("select")}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                className="rounded border border-gray-300 px-4 py-2 text-gray-600 hover:bg-gray-50"
               >
                 Adjust Filters
               </button>
               <div className="space-x-2">
                 <button
                   onClick={handleRetry}
-                  className="px-4 py-2 text-blue-600 border border-blue-300 rounded hover:bg-blue-50"
+                  className="rounded border border-blue-300 px-4 py-2 text-blue-600 hover:bg-blue-50"
                 >
                   Re-parse with Current Settings
                 </button>
                 {parseResult.success && parseResult.blocks.length > 0 && (
                   <button
                     onClick={handleConfirmImport}
-                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                    className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
                   >
                     <div className="flex items-center space-x-1">
-                      <Filter className="w-4 h-4" />
+                      <Filter className="h-4 w-4" />
                       <span>Import {parseResult.blocks.length} Blocks</span>
                     </div>
                   </button>

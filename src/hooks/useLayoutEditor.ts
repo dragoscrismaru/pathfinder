@@ -183,11 +183,45 @@ export const useLayoutEditor = (layoutId: string) => {
     setHasUnsavedChanges(true);
   }, []);
 
+  const [currentPath, setCurrentPath] = useState<Point[]>([]);
+  const [pathfindingMessage, setPathfindingMessage] = useState<string>("");
+
   // Pathfinding methods (simplified for now)
   const findPath = useCallback(() => {
     // Your existing pathfinding logic
-    console.log("🗺️ Finding path between start and end points");
-  }, []);
+    const startPoint = pathPoints.find((p) => p.type === "start");
+    const endPoint = pathPoints.find((p) => p.type === "end");
+
+    if (!startPoint || !endPoint) {
+      setPathfindingMessage("Please place both start and end points!");
+      setCurrentPath([]);
+      return;
+    }
+
+    // Dynamic import to avoid bundling issues
+    import("@/lib/pathfinding")
+      .then(({ findPath: pathfindingAlgorithm, optimizePath }) => {
+        const result = pathfindingAlgorithm(
+          { x: startPoint.x, y: startPoint.y },
+          { x: endPoint.x, y: endPoint.y },
+          blocks,
+        );
+
+        if (result.success) {
+          const optimizedPath = optimizePath(result.path);
+          setCurrentPath(optimizedPath);
+          setPathfindingMessage(result.message);
+        } else {
+          setCurrentPath([]);
+          setPathfindingMessage(result.message);
+        }
+      })
+      .catch(() => {
+        setPathfindingMessage("Error loading pathfinding algorithm");
+        setCurrentPath([]);
+      });
+    // console.log("🗺️ Finding path between start and end points");
+  }, [pathPoints, blocks]);
 
   const clearPathPoints = useCallback(() => {
     setPathPoints([]);
@@ -246,7 +280,7 @@ export const useLayoutEditor = (layoutId: string) => {
     tempName,
     allowOverlap,
     overlappingBlocks,
-    currentPath: [], // TODO: implement pathfinding visualization
+    currentPath, // TODO: implement pathfinding visualization
     pathfindingMessage: "", // TODO: implement pathfinding messages
 
     // Loading states

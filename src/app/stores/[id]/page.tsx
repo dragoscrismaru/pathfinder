@@ -20,7 +20,7 @@ export default function StoreDetailPage() {
     refetch,
   } = api.store.getById.useQuery({ id: storeId });
 
-  const createLayoutMutation = api.store.createLayout.useMutation({
+  const createLayoutMutation = api.layout.create.useMutation({
     onSuccess: (layout) => {
       console.log(`✅ Created layout: ${layout.name}`);
       setNewLayoutName("");
@@ -32,7 +32,7 @@ export default function StoreDetailPage() {
     },
   });
 
-  const deleteLayoutMutation = api.store.deleteLayout.useMutation({
+  const deleteLayoutMutation = api.layout.deleteLayout.useMutation({
     onSuccess: () => {
       refetch();
     },

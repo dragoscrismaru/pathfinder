@@ -66,7 +66,7 @@ const isPointBlocked = (
   x: number,
   y: number,
   blocks: StoreBlock[],
-  clearance: number = PATHFINDING_CLEARANCE
+  clearance: number = PATHFINDING_CLEARANCE,
 ): boolean => {
   for (const block of blocks) {
     // Expand block bounds by clearance distance
@@ -88,7 +88,7 @@ const isPointBlocked = (
 const getNeighbors = (
   node: PathNode,
   blocks: StoreBlock[],
-  gridSize: number = PATHFINDING_GRID_SIZE
+  gridSize: number = PATHFINDING_GRID_SIZE,
 ): Point[] => {
   const neighbors: Point[] = [
     { x: node.x + gridSize, y: node.y }, // Right
@@ -99,7 +99,7 @@ const getNeighbors = (
 
   // Filter out blocked positions
   return neighbors.filter(
-    (neighbor) => !isPointBlocked(neighbor.x, neighbor.y, blocks)
+    (neighbor) => !isPointBlocked(neighbor.x, neighbor.y, blocks),
   );
 };
 
@@ -143,7 +143,7 @@ const reconstructPath = (endNode: PathNode): Point[] => {
 export const findPath = (
   start: Point,
   end: Point,
-  blocks: StoreBlock[]
+  blocks: StoreBlock[],
 ): PathfindingResult => {
   // Snap start and end to grid
   const gridSize = PATHFINDING_GRID_SIZE;
@@ -216,7 +216,7 @@ export const findPath = (
         path,
         distance,
         message: `Path found! Distance: ${distance.toFixed(
-          1
+          1,
         )}m (${iterations} iterations)`,
       };
     }
@@ -251,7 +251,7 @@ export const findPath = (
 
         // Add to open set if not already there
         const existingIndex = openSet.findIndex(
-          (node) => pointToKey(node) === neighborKey
+          (node) => pointToKey(node) === neighborKey,
         );
         if (existingIndex >= 0) {
           openSet[existingIndex] = neighborNode;
@@ -332,7 +332,7 @@ export const calculatePathDistance = (path: Point[]): number => {
  */
 export const validatePathPoints = (
   pathPoints: PathPoint[],
-  blocks: StoreBlock[]
+  blocks: StoreBlock[],
 ): { valid: boolean; message: string } => {
   const start = pathPoints.find((p) => p.type === "start");
   const end = pathPoints.find((p) => p.type === "end");

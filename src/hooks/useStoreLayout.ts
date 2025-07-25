@@ -18,6 +18,7 @@ import {
 } from "@/lib/collision";
 import { getDefaultBlockConfig } from "@/lib/blockConfig";
 import { snapToGrid } from "@/lib/geometry";
+import { api } from "@/trpc/server";
 
 // ===================================================================
 // IMPORT TYPES
@@ -577,6 +578,63 @@ export const useStoreLayout = () => {
 
   const [currentPath, setCurrentPath] = useState<Point[]>([]);
   const [pathfindingMessage, setPathfindingMessage] = useState<string>("");
+
+  const findPathToProduct = useCallback(
+    async (productName: string, storeId: string, layoutId: string) => {
+      const startPoint = pathPoints.find((p) => p.type === "start");
+
+      if (!startPoint) {
+        setPathfindingMessage("Please place a start point!");
+        setCurrentPath([]);
+        return;
+      }
+
+      try {
+        const productLocation = await api.grid.searchProducts.({
+          storeId,
+          layoutId,
+          productName,
+        });
+
+        if (
+          !productLocation ||
+          productLocation.worldX == null ||
+          productLocation.worldY == null
+        ) {
+          setPathfindingMessage("Product not found in layout.");
+          setCurrentPath([]);
+          return;
+        }
+
+        const { worldX, worldY } = productLocation;
+
+        // Dynamic import pathfinding
+        const { findPath: pathfindingAlgorithm, optimizePath } = await import(
+          "@/lib/pathfinding"
+        );
+
+        const result = pathfindingAlgorithm(
+          { x: startPoint.x, y: startPoint.y },
+          { x: worldX, y: worldY },
+          blocks,
+        );
+
+        if (result.success) {
+          const optimizedPath = optimizePath(result.path);
+          setCurrentPath(optimizedPath);
+          setPathfindingMessage(result.message);
+        } else {
+          setCurrentPath([]);
+          setPathfindingMessage(result.message);
+        }
+      } catch (error) {
+        console.error("Pathfinding error:", error);
+        setPathfindingMessage("Failed to find path to product.");
+        setCurrentPath([]);
+      }
+    },
+    [pathPoints, blocks],
+  );
 
   /**
    * Executes pathfinding algorithm and displays result

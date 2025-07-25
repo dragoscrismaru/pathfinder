@@ -11,6 +11,7 @@ import {
 import { worldToScreen, screenToWorld, getMousePosition } from "@/lib/geometry";
 import { getBlockRenderProperties } from "@/lib/blockConfig";
 import { getOverlapArea } from "@/lib/collision";
+import { useModal } from "@/hooks/use-modal-store";
 
 // ===================================================================
 // ENHANCED CANVAS INTERFACE
@@ -245,7 +246,8 @@ export const Canvas: React.FC<EnhancedCanvasProps> = ({
   // ===================================================================
   // INTERACTION HANDLERS (Updated for Zoom)
   // ===================================================================
-
+  const { onOpen } = useModal();
+  // Update the handleBlockMouseDown function:
   const handleBlockMouseDown = useCallback(
     (e: React.MouseEvent, blockId: string) => {
       e.stopPropagation();
@@ -254,6 +256,17 @@ export const Canvas: React.FC<EnhancedCanvasProps> = ({
 
       const block = blocks.find((b) => b.id === blockId);
       if (!block) return;
+
+      // Double-click to open edit modal for shelves and walls
+      if (
+        e.detail === 2 &&
+        (block.type === "shelf" ||
+          block.type === "wall" ||
+          block.type === "counter")
+      ) {
+        onOpen("editBlock", { block });
+        return;
+      }
 
       onBlockClick(blockId, e);
 
@@ -267,7 +280,7 @@ export const Canvas: React.FC<EnhancedCanvasProps> = ({
         y: worldPos.y - block.y,
       };
     },
-    [blocks, editingBlockId, onBlockClick, screenToWorldWithZoom],
+    [blocks, editingBlockId, onBlockClick, screenToWorldWithZoom, onOpen],
   );
 
   const handleCanvasMouseDown = useCallback(

@@ -8,6 +8,79 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
+model BlockGrid {
+    id       String @id @default(cuid())
+    blockId  String @unique // Reference to the StoreBlock
+    layoutId String // Which layout this belongs to
+    storeId  String // Which store this belongs to
+
+    // Grid configuration
+    rows    Int // Number of rows
+    columns Int // Number of columns
+
+    // Grid metadata
+    totalWidth  Float // Total width in meters
+    totalHeight Float // Total height in meters
+
+    // Relations
+    gridColumns GridColumn[]
+    gridRows    GridRow[]
+    gridCells   GridCell[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("block_grids")
+}
+
+model GridColumn {
+    id     String    @id @default(cuid())
+    gridId String // Reference to BlockGrid
+    grid   BlockGrid @relation(fields: [gridId], references: [id], onDelete: Cascade)
+
+    index Int // Column position (0, 1, 2...)
+    width Float // Width in meters
+    name  String // Display name (e.g., "Electronics")
+
+    @@map("grid_columns")
+}
+
+model GridRow {
+    id     String    @id @default(cuid())
+    gridId String // Reference to BlockGrid
+    grid   BlockGrid @relation(fields: [gridId], references: [id], onDelete: Cascade)
+
+    index  Int // Row position (0, 1, 2...)
+    height Float // Height in meters
+    name   String // Display name (e.g., "Top Shelf")
+
+    @@map("grid_rows")
+}
+
+model GridCell {
+    id     String    @id @default(cuid())
+    gridId String // Reference to BlockGrid
+    grid   BlockGrid @relation(fields: [gridId], references: [id], onDelete: Cascade)
+
+    row    Int // Row position
+    column Int // Column position
+    width  Float // Cell width in meters
+    height Float // Cell height in meters
+
+    // Product assignment
+    productName String? // Name of assigned product
+    isEmpty     Boolean @default(true)
+
+    // Calculated world coordinates (for pathfinding)
+    worldX Float? // Exact X coordinate in layout
+    worldY Float? // Exact Y coordinate in layout
+
+    name String? // Optional cell name
+
+    @@unique([gridId, row, column]) // Ensure unique cell positions
+    @@map("grid_cells")
+}
+
 // Your existing types as Prisma models
 model Store {
     id          String   @id @default(cuid())

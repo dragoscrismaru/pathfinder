@@ -145,24 +145,17 @@ export const layoutRouter = createTRPCRouter({
     .input(
       z.object({
         name: z.string().min(1).max(100),
-        description: z.string().optional(),
+        // description: z.string().optional(),
+        storeId: z.string(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      return await ctx.db.store.create({
+      return await ctx.db.layout.create({
         data: {
+          storeId: input.storeId,
           name: input.name,
-          description: input.description,
-          layouts: {
-            create: {
-              name: "Main Layout",
-              blocks: [],
-              pathPoints: [],
-            },
-          },
-        },
-        include: {
-          layouts: true,
+          blocks: [],
+          // pathPoints: [],
         },
       });
     }),
